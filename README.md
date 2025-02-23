@@ -32,3 +32,20 @@
    ```sh
    myscript
    ```
+
+### Adding Keybindings in Hyprland
+
+1. **Edit Hyprland config:**
+   ```sh
+   nvim ~/.config/hypr/hyprland.conf
+   ```
+2. **Add keybindings:**
+   ```ini
+   bind = $mainMod+CTRL,W,exec,~/projects/CLItoolbox/paramWifi.sh --watch
+   bind = $mainMod+CTRL,S,exec,~/projects/CLItoolbox/paramWifi.sh --switch
+   ```
+3. **Reload config:**
+   ```sh
+   hyprctl reload
+   ```
+   Done! 🚀
