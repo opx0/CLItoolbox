@@ -1,0 +1,44 @@
+services:
+  mongodb:
+    image: mongo:7-jammy
+    container_name: mongodb_prod_ready
+    restart: unless-stopped
+
+    # Use environment variables from .env file
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+
+    ports:
+      - "${DB_PORT}:27017"
+
+    volumes:
+      # Data persistence: Maps to a named volume
+      - mongodb_data:/data/db
+      # Config persistence
+      - mongodb_config:/data/configdb
+      # Initial scripts: Any .js or .sh in this folder runs on the FIRST start
+      - ./init:/docker-entrypoint-initdb.d
+
+    # Resource Limits (Crucial for Production)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          memory: 256M
+
+    # Healthcheck: Ensures other services wait until DB is actually "Ready"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
