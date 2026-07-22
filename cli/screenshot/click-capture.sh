@@ -19,7 +19,7 @@ SCREENSHOT_DIR="${SCREENSHOT_DIR:-$HOME/Pictures}"
 SCREENSHOT_PREFIX="${SCREENSHOT_PREFIX:-Q}"
 SCREENSHOT_EXT="${SCREENSHOT_EXT:-.png}"
 COUNTDOWN="${COUNTDOWN:-5}"
-CLICK_DELAY="${CLICK_DELAY:-0.5}"
+CLICK_DELAY="${CLICK_DELAY:-0.9}"
 
 # -----------------------------------------------------------------------------
 # FUNCTIONS
@@ -62,14 +62,14 @@ convert_to_pdf() {
     local prefix="$2"
     local pdf_tool
     pdf_tool=$(check_pdf_tool)
-    
+
     local pdf_time
     pdf_time=$(date +%H%M%S)
     local pdf_name="Qz_${pdf_time}.pdf"
     local pdf_path="${output_dir}/${pdf_name}"
-    
+
     log_info "Converting to PDF..."
-    
+
     case "$pdf_tool" in
         magick)
             magick "${output_dir}/${prefix}"_*.png "$pdf_path"
@@ -83,7 +83,7 @@ convert_to_pdf() {
             return 1
             ;;
     esac
-    
+
     if [[ -f "$pdf_path" ]]; then
         # Clean up PNGs
         rm -f "${output_dir}/${prefix}"_*.png
@@ -101,7 +101,7 @@ convert_to_pdf() {
 main() {
     local repetitions=""
     local create_pdf=true
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -141,42 +141,42 @@ main() {
                 ;;
         esac
     done
-    
+
     # Validate repetitions
     if [[ -z "$repetitions" ]]; then
         usage
     fi
-    
+
     if ! [[ "$repetitions" =~ ^[0-9]+$ ]] || [[ "$repetitions" -lt 1 ]]; then
         die "Please provide a valid positive number"
     fi
-    
+
     # Check tools
     local session click_tool screenshot_tool
     session=$(detect_session)
     click_tool=$(detect_click_tool)
     screenshot_tool=$(detect_screenshot_tool)
-    
+
     log_info "Session: $session"
     log_info "Screenshot tool: $screenshot_tool"
     log_info "Click tool: $click_tool"
-    
+
     if [[ "$screenshot_tool" == "none" ]]; then
         die "No screenshot tool found"
     fi
-    
+
     if [[ "$click_tool" == "none" ]]; then
         die "No click automation tool found"
     fi
-    
+
     # Check click daemon if needed
     if ! check_click_daemon; then
         exit 1
     fi
-    
+
     # Ensure output directory exists
     ensure_dir "$SCREENSHOT_DIR"
-    
+
     # Countdown
     log_ok "Tools ready!"
     echo "Position cursor now! Starting in ${COUNTDOWN} seconds..."
@@ -186,24 +186,37 @@ main() {
     done
     echo ""
     log_info "Starting automation..."
-    
+
     # Main loop
     local screenshot_files=()
+    local pad_width="${#repetitions}"
     for ((count = 1; count <= repetitions; count++)); do
         echo "[$count/$repetitions]"
-        
-        local output_file="${SCREENSHOT_DIR}/${SCREENSHOT_PREFIX}_${count}${SCREENSHOT_EXT}"
-        
-        # Take screenshot
-        take_screenshot "$output_file" "fullscreen" >/dev/null
+
+        local padded_count
+        printf -v padded_count "%0${pad_width}d" "$count"
+        local output_file="${SCREENSHOT_DIR}/${SCREENSHOT_PREFIX}_${padded_count}${SCREENSHOT_EXT}"
+
+        # Take screenshot, retry on transient capture failure (e.g. grim
+        # racing a compositor frame right after the click)
+        local attempt ok=0
+        for ((attempt = 1; attempt <= 3; attempt++)); do
+            if take_screenshot "$output_file" "fullscreen" >/dev/null 2>&1; then
+                ok=1
+                break
+            fi
+            log_warn "Capture $count failed (attempt $attempt/3), retrying..."
+            sleep 0.3
+        done
+        [[ "$ok" -eq 1 ]] || die "Capture $count failed after 3 attempts"
         screenshot_files+=("$output_file")
-        
+
         # Click and wait
         sleep "$CLICK_DELAY"
         simulate_click "left"
         sleep "$CLICK_DELAY"
     done
-    
+
     # Convert to PDF
     if [[ "$create_pdf" == true ]]; then
         convert_to_pdf "$SCREENSHOT_DIR" "$SCREENSHOT_PREFIX"

@@ -187,11 +187,12 @@ take_screenshot() {
             ;;
     esac
     
-    if [[ -f "$output" ]]; then
+    if [[ -s "$output" ]]; then
         log_ok "Screenshot saved: $output"
         echo "$output"
     else
-        die "Failed to capture screenshot"
+        rm -f "$output"
+        die "Failed to capture screenshot (empty or missing file)"
     fi
 }
 
